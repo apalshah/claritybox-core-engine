@@ -6,6 +6,7 @@ You are building **ClarityBox UI**, a React frontend for a financial market anal
 
 ## Tech Stack
 
+- **Dev server port:** 5174 (5173 is taken by MarketVibes)
 - **Build tool:** Vite
 - **Framework:** React 18 with TypeScript
 - **Routing:** React Router v6
@@ -31,6 +32,16 @@ npm install react-icons
 Create `.env`:
 ```
 VITE_API_BASE_URL=http://localhost:8002
+```
+
+In `vite.config.ts`, set the dev server port to **5174** (5173 is taken by MarketVibes):
+```ts
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5174,
+  },
+})
 ```
 
 ---

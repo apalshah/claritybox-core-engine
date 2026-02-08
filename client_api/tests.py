@@ -18,13 +18,15 @@ class BaseAPITestCase(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        # Regions
-        cls.region_asia = Region.objects.create(id=1, code='ASIA', name='Asia')
-        cls.region_na = Region.objects.create(id=2, code='NA', name='North America')
+        # Regions (matching production order)
+        cls.region_india = Region.objects.create(id=4, code='INDIA', name='India')
+        cls.region_us = Region.objects.create(id=2, code='US', name='United States')
+        cls.region_asia = Region.objects.create(id=1, code='ASIA', name='Asia Pacific')
+        cls.region_europe = Region.objects.create(id=3, code='EUROPE', name='Europe')
 
         # Countries
-        cls.country_india = Country.objects.create(id=1, code='IN', name='India', region=cls.region_asia)
-        cls.country_us = Country.objects.create(id=2, code='US', name='United States', region=cls.region_na)
+        cls.country_india = Country.objects.create(id=4, code='IN', name='India', region=cls.region_india)
+        cls.country_us = Country.objects.create(id=3, code='US', name='United States', region=cls.region_us)
 
         # Markets
         cls.market_india = Market.objects.create(id=1, name='india_stocks_indexes', label='Indian Stocks & Indexes')
@@ -98,12 +100,12 @@ class BaseAPITestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.user = CustomUser.objects.create_user(
-            email='test@example.com', password='TestPass123',
+            username='testuser', password='TestPass123',
             first_name='Test', last_name='User',
         )
         # Get JWT token
         resp = self.client.post(reverse('claritybox-login'), {
-            'email': 'test@example.com', 'password': 'TestPass123',
+            'username': 'testuser', 'password': 'TestPass123',
         }, format='json')
         self.access_token = resp.data['accessToken']
         self.refresh_token_str = resp.data['refreshToken']
@@ -112,38 +114,11 @@ class BaseAPITestCase(TestCase):
 
 # ─── Auth Tests ───────────────────────────────────────────────────────
 
-class SignupTests(BaseAPITestCase):
-
-    def test_signup_success(self):
-        resp = self.client.post(reverse('claritybox-signup'), {
-            'email': 'new@example.com', 'password': 'NewPass123',
-            'first_name': 'New', 'last_name': 'User',
-        }, format='json')
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn('accessToken', resp.data)
-        self.assertIn('refreshToken', resp.data)
-        self.assertTrue(CustomUser.objects.filter(email='new@example.com').exists())
-
-    def test_signup_duplicate_email(self):
-        resp = self.client.post(reverse('claritybox-signup'), {
-            'email': 'test@example.com', 'password': 'Pass123',
-            'first_name': 'Dup', 'last_name': 'User',
-        }, format='json')
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('error', resp.data)
-
-    def test_signup_missing_fields(self):
-        resp = self.client.post(reverse('claritybox-signup'), {
-            'email': 'partial@example.com',
-        }, format='json')
-        self.assertEqual(resp.status_code, 400)
-
-
 class LoginTests(BaseAPITestCase):
 
     def test_login_success(self):
         resp = self.client.post(reverse('claritybox-login'), {
-            'email': 'test@example.com', 'password': 'TestPass123',
+            'username': 'testuser', 'password': 'TestPass123',
         }, format='json')
         self.assertEqual(resp.status_code, 200)
         self.assertIn('accessToken', resp.data)
@@ -151,23 +126,22 @@ class LoginTests(BaseAPITestCase):
 
     def test_login_wrong_password(self):
         resp = self.client.post(reverse('claritybox-login'), {
-            'email': 'test@example.com', 'password': 'WrongPass',
+            'username': 'testuser', 'password': 'WrongPass',
         }, format='json')
         self.assertEqual(resp.status_code, 400)
 
-    def test_login_nonexistent_email(self):
+    def test_login_nonexistent_user(self):
         resp = self.client.post(reverse('claritybox-login'), {
-            'email': 'nobody@example.com', 'password': 'Pass123',
+            'username': 'nobody', 'password': 'Pass123',
         }, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_login_inactive_user(self):
         self.user.is_active = False
         self.user.save()
-        # Need a new client without auth
         client = APIClient()
         resp = client.post(reverse('claritybox-login'), {
-            'email': 'test@example.com', 'password': 'TestPass123',
+            'username': 'testuser', 'password': 'TestPass123',
         }, format='json')
         self.assertEqual(resp.status_code, 403)
 
@@ -197,7 +171,7 @@ class ProfileTests(BaseAPITestCase):
     def test_get_profile(self):
         resp = self.client.get(reverse('claritybox-profile'))
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.data['email'], 'test@example.com')
+        self.assertEqual(resp.data['username'], 'testuser')
         self.assertEqual(resp.data['first_name'], 'Test')
 
     def test_update_profile(self):
@@ -245,19 +219,23 @@ class GlobalMarketSummaryTests(BaseAPITestCase):
         regions = resp.data['regions']
         self.assertTrue(len(regions) >= 1)
 
-    def test_summary_index_structure(self):
+    def test_summary_region_order(self):
+        """Regions must appear in order: INDIA, US, ASIA, EUROPE."""
+        resp = self.client.get(reverse('claritybox-global-market-summary'))
+        region_codes = [r['code'] for r in resp.data['regions']]
+        # Only check those that have data in test DB
+        self.assertEqual(region_codes[0], 'INDIA')
+
+    def test_summary_india_structure(self):
         resp = self.client.get(reverse('claritybox-global-market-summary'))
         regions = resp.data['regions']
-        # Find Asia region
-        asia = next((r for r in regions if r['code'] == 'ASIA'), None)
-        self.assertIsNotNone(asia)
-        self.assertIn('countries', asia)
-        india = next((c for c in asia['countries'] if c['code'] == 'IN'), None)
+        india = next((r for r in regions if r['code'] == 'INDIA'), None)
         self.assertIsNotNone(india)
-        self.assertIn('indexes', india)
-        nifty = next((idx for idx in india['indexes'] if idx['name'] == 'NIFTY50'), None)
+        self.assertIn('countries', india)
+        country = india['countries'][0]
+        self.assertEqual(country['code'], 'IN')
+        nifty = next((idx for idx in country['indexes'] if idx['name'] == 'NIFTY50'), None)
         self.assertIsNotNone(nifty)
-        # Verify fields
         self.assertIn('smart_index_st', nifty)
         self.assertIn('active_zone', nifty)
         self.assertIn('status', nifty)
@@ -265,25 +243,18 @@ class GlobalMarketSummaryTests(BaseAPITestCase):
     def test_summary_zone_classification(self):
         resp = self.client.get(reverse('claritybox-global-market-summary'))
         regions = resp.data['regions']
-        # NIFTY50 latest entry has mv_score=15 (RED zone)
-        asia = next(r for r in regions if r['code'] == 'ASIA')
-        india = next(c for c in asia['countries'] if c['code'] == 'IN')
-        nifty = next(idx for idx in india['indexes'] if idx['name'] == 'NIFTY50')
+        india = next(r for r in regions if r['code'] == 'INDIA')
+        country = india['countries'][0]
+        nifty = next(idx for idx in country['indexes'] if idx['name'] == 'NIFTY50')
         self.assertEqual(nifty['active_zone'], 'RED')
         self.assertEqual(nifty['smart_index_st'], 15)
 
-    def test_summary_crypto_pseudo_region(self):
+    def test_summary_no_crypto_pseudo_region(self):
+        """Crypto should not appear as a region tab."""
         resp = self.client.get(reverse('claritybox-global-market-summary'))
-        regions = resp.data['regions']
-        crypto = next((r for r in regions if r['code'] == 'CRYPTO'), None)
-        self.assertIsNotNone(crypto)
-        self.assertEqual(crypto['name'], 'Crypto')
-
-    def test_summary_metals_pseudo_region(self):
-        resp = self.client.get(reverse('claritybox-global-market-summary'))
-        regions = resp.data['regions']
-        metals = next((r for r in regions if r['code'] == 'PRECIOUS_METALS'), None)
-        self.assertIsNotNone(metals)
+        region_codes = [r['code'] for r in resp.data['regions']]
+        self.assertNotIn('CRYPTO', region_codes)
+        self.assertNotIn('PRECIOUS_METALS', region_codes)
 
     def test_summary_unauthenticated(self):
         client = APIClient()

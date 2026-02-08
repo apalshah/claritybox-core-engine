@@ -3,8 +3,7 @@ from django.urls import path
 from . import auth_views, views
 
 urlpatterns = [
-    # Auth
-    path('auth/signup/', auth_views.signup, name='claritybox-signup'),
+    # Auth (no public signup — users created via Django admin)
     path('auth/login/', auth_views.login, name='claritybox-login'),
     path('auth/refresh/', auth_views.refresh_token, name='claritybox-refresh'),
     path('auth/profile/', auth_views.profile, name='claritybox-profile'),

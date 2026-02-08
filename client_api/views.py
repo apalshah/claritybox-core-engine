@@ -135,21 +135,40 @@ def market_metadata(request):
 
 # ─── Global Market Summary V2 (by region) ──────────────────────────
 
+# Tab order and which indexes to show per region
+REGION_ORDER = ['INDIA', 'US', 'ASIA', 'EUROPE']
+
+# India: only these 6 symbols in this exact order
+INDIA_SYMBOL_ORDER = ['SENSEX', 'NIFTY50', 'NIFTYBANK', 'NIFTYIT', 'NIFTYMIDCAP100', 'NIFTYSMALLCAP100']
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def global_market_summary_v2(request):
-    """Returns all indexes grouped by region > country > indexes with scores."""
-    regions = Region.objects.all().order_by('id')
+    """Returns indexes grouped by region with controlled ordering."""
     result = []
 
-    for region in regions:
-        countries_data = []
+    for region_code in REGION_ORDER:
+        try:
+            region = Region.objects.get(code=region_code)
+        except Region.DoesNotExist:
+            continue
+
         countries = Country.objects.filter(region=region).order_by('id')
+        countries_data = []
 
         for country in countries:
-            symbols = Symbol.objects.filter(country=country).select_related('market')
-            indexes_data = []
+            if region_code == 'INDIA':
+                # Fixed symbol order for India
+                symbols_qs = Symbol.objects.filter(
+                    country=country, name__in=INDIA_SYMBOL_ORDER
+                ).select_related('market')
+                symbols_by_name = {s.name: s for s in symbols_qs}
+                symbols = [symbols_by_name[n] for n in INDIA_SYMBOL_ORDER if n in symbols_by_name]
+            else:
+                symbols = list(Symbol.objects.filter(country=country).select_related('market').order_by('id'))
 
+            indexes_data = []
             for symbol in symbols:
                 market_name = symbol.market.name if symbol.market else None
                 table_model = TABLE_MODEL_MAP.get(market_name)
@@ -169,26 +188,6 @@ def global_market_summary_v2(request):
                 'code': region.code,
                 'name': region.name,
                 'countries': countries_data,
-            })
-
-    # Add crypto and precious metals as separate pseudo-regions
-    for market_name, label in [('crypto', 'Crypto'), ('precious_metals', 'Precious Metals')]:
-        symbols = Symbol.objects.filter(market__name=market_name)
-        if not symbols:
-            continue
-
-        table_model = TABLE_MODEL_MAP[market_name]
-        indexes_data = [_build_index_data(s, table_model) for s in symbols]
-
-        if indexes_data:
-            result.append({
-                'code': market_name.upper(),
-                'name': label,
-                'countries': [{
-                    'code': market_name.upper(),
-                    'name': label,
-                    'indexes': indexes_data,
-                }],
             })
 
     return Response({'regions': result})

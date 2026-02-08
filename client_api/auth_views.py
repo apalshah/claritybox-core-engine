@@ -40,19 +40,19 @@ def signup(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):
-    email = request.data.get('email', '').strip().lower()
+    username = request.data.get('username', '').strip()
     password = request.data.get('password', '')
 
-    if not all([email, password]):
-        return Response({'error': 'Email and password are required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not all([username, password]):
+        return Response({'error': 'Username and password are required'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        user = User.objects.get(email=email)
+        user = User.objects.get(username=username)
     except User.DoesNotExist:
-        return Response({'error': 'Invalid email or password'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Invalid username or password'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not user.check_password(password):
-        return Response({'error': 'Invalid email or password'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Invalid username or password'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not user.is_active:
         return Response({'error': 'Account is not active'}, status=status.HTTP_403_FORBIDDEN)
@@ -88,6 +88,7 @@ def profile(request):
 
     if request.method == 'GET':
         return Response({
+            'username': user.username,
             'email': user.email,
             'first_name': user.first_name,
             'last_name': user.last_name,
