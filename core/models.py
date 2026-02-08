@@ -85,19 +85,35 @@ class Symbol(models.Model):
         return self.name
 
 
-class IndiaStocksIndexes(models.Model):
+class BaseMarketData(models.Model):
+    """Abstract base for all 5 market data tables."""
     price_timestamp = models.DateTimeField()
-    open = models.DecimalField(max_digits=12, decimal_places=2)
-    high = models.DecimalField(max_digits=12, decimal_places=2)
-    low = models.DecimalField(max_digits=12, decimal_places=2)
-    close = models.DecimalField(max_digits=12, decimal_places=2)
-    volume_number = models.BigIntegerField(blank=True, null=True)
     symbol = models.ForeignKey(Symbol, on_delete=models.CASCADE, blank=True, null=True)
     mv_score = models.IntegerField(blank=True, null=True)
     cb_score = models.IntegerField(blank=True, null=True)
     aes_leverage_moderate = models.IntegerField(blank=True, null=True)
     aes_leverage_aggressive = models.IntegerField(blank=True, null=True)
 
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        return f"{self.symbol} - {self.price_timestamp}"
+
+
+class StockMarketData(BaseMarketData):
+    """Abstract base for stock/index tables with Decimal OHLCV."""
+    open = models.DecimalField(max_digits=12, decimal_places=2)
+    high = models.DecimalField(max_digits=12, decimal_places=2)
+    low = models.DecimalField(max_digits=12, decimal_places=2)
+    close = models.DecimalField(max_digits=12, decimal_places=2)
+    volume_number = models.BigIntegerField(blank=True, null=True)
+
+    class Meta(BaseMarketData.Meta):
+        abstract = True
+
+
+class IndiaStocksIndexes(StockMarketData):
     class Meta:
         db_table = 'india_stocks_indexes'
         indexes = [
@@ -105,23 +121,8 @@ class IndiaStocksIndexes(models.Model):
             models.Index(fields=['symbol']),
         ]
 
-    def __str__(self):
-        return f"{self.symbol} - {self.price_timestamp}"
 
-
-class UsStocksIndexes(models.Model):
-    price_timestamp = models.DateTimeField()
-    open = models.DecimalField(max_digits=12, decimal_places=2)
-    high = models.DecimalField(max_digits=12, decimal_places=2)
-    low = models.DecimalField(max_digits=12, decimal_places=2)
-    close = models.DecimalField(max_digits=12, decimal_places=2)
-    volume_number = models.BigIntegerField(blank=True, null=True)
-    symbol = models.ForeignKey(Symbol, on_delete=models.CASCADE, blank=True, null=True)
-    mv_score = models.IntegerField(blank=True, null=True)
-    cb_score = models.IntegerField(blank=True, null=True)
-    aes_leverage_moderate = models.IntegerField(blank=True, null=True)
-    aes_leverage_aggressive = models.IntegerField(blank=True, null=True)
-
+class UsStocksIndexes(StockMarketData):
     class Meta:
         db_table = 'us_stocks_indexes'
         indexes = [
@@ -129,23 +130,9 @@ class UsStocksIndexes(models.Model):
             models.Index(fields=['symbol']),
         ]
 
-    def __str__(self):
-        return f"{self.symbol} - {self.price_timestamp}"
 
-
-class InternationalStocksIndexes(models.Model):
-    price_timestamp = models.DateTimeField()
-    open = models.DecimalField(max_digits=12, decimal_places=2)
-    high = models.DecimalField(max_digits=12, decimal_places=2)
-    low = models.DecimalField(max_digits=12, decimal_places=2)
-    close = models.DecimalField(max_digits=12, decimal_places=2)
-    volume_number = models.BigIntegerField(blank=True, null=True)
+class InternationalStocksIndexes(StockMarketData):
     region = models.CharField(max_length=20, blank=True, null=True)
-    symbol = models.ForeignKey(Symbol, on_delete=models.CASCADE, blank=True, null=True)
-    mv_score = models.IntegerField(blank=True, null=True)
-    cb_score = models.IntegerField(blank=True, null=True)
-    aes_leverage_moderate = models.IntegerField(blank=True, null=True)
-    aes_leverage_aggressive = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'international_stocks_indexes'
@@ -154,12 +141,8 @@ class InternationalStocksIndexes(models.Model):
             models.Index(fields=['symbol']),
         ]
 
-    def __str__(self):
-        return f"{self.symbol} - {self.price_timestamp}"
 
-
-class Crypto(models.Model):
-    price_timestamp = models.DateTimeField()
+class Crypto(BaseMarketData):
     open = models.FloatField()
     high = models.FloatField()
     low = models.FloatField()
@@ -167,11 +150,6 @@ class Crypto(models.Model):
     volume_number = models.FloatField()
     volume_usd = models.FloatField()
     bitmex_funding_rate = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True)
-    symbol = models.ForeignKey(Symbol, on_delete=models.CASCADE, blank=True, null=True)
-    mv_score = models.IntegerField(blank=True, null=True)
-    cb_score = models.IntegerField(blank=True, null=True)
-    aes_leverage_moderate = models.IntegerField(blank=True, null=True)
-    aes_leverage_aggressive = models.IntegerField(blank=True, null=True)
 
     class Meta:
         db_table = 'crypto'
@@ -180,32 +158,14 @@ class Crypto(models.Model):
             models.Index(fields=['symbol']),
         ]
 
-    def __str__(self):
-        return f"{self.symbol} - {self.price_timestamp}"
 
-
-class PreciousMetals(models.Model):
-    price_timestamp = models.DateTimeField()
-    open = models.DecimalField(max_digits=12, decimal_places=2)
-    high = models.DecimalField(max_digits=12, decimal_places=2)
-    low = models.DecimalField(max_digits=12, decimal_places=2)
-    close = models.DecimalField(max_digits=12, decimal_places=2)
-    volume_number = models.BigIntegerField(blank=True, null=True)
-    symbol = models.ForeignKey(Symbol, on_delete=models.CASCADE, blank=True, null=True)
-    mv_score = models.IntegerField(blank=True, null=True)
-    cb_score = models.IntegerField(blank=True, null=True)
-    aes_leverage_moderate = models.IntegerField(blank=True, null=True)
-    aes_leverage_aggressive = models.IntegerField(blank=True, null=True)
-
+class PreciousMetals(StockMarketData):
     class Meta:
         db_table = 'precious_metals'
         indexes = [
             models.Index(fields=['price_timestamp']),
             models.Index(fields=['symbol']),
         ]
-
-    def __str__(self):
-        return f"{self.symbol} - {self.price_timestamp}"
 
 
 class DataPollingStatus(models.Model):
